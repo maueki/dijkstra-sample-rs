@@ -48,30 +48,97 @@ fn parse_table(rows: usize) -> Vec<Vec<char>> {
     (0..rows).map(|_| read_line!().chars().collect()).collect::<Vec<Vec<_>>>()
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
-struct State<T: Copy+Clone+Eq+PartialEq+Ord> {
-    cost: usize,
-    pos: T
-}
+mod dijkstra {
+    use std::cmp::Ordering;
+    use std::collections::BinaryHeap;
 
-use std::cmp::Ordering;
-impl<T: Copy+Clone+Eq+PartialEq+Ord> Ord for State<T> {
-    fn cmp(&self, other: &State<T>) -> std::cmp::Ordering {
-        let c = other.cost.cmp(&self.cost);
+    #[derive(Copy, Clone, Eq, PartialEq)]
+    pub struct State<T: Copy+Clone+Eq+PartialEq+Ord> {
+        pub cost: usize,
+        pub pos: T
+    }
 
-        if c == Ordering::Equal {
-            self.pos.cmp(&other.pos)
-        } else {
-            c
+    impl<T: Copy+Clone+Eq+PartialEq+Ord> Ord for State<T> {
+        fn cmp(&self, other: &State<T>) -> Ordering {
+            let c = other.cost.cmp(&self.cost);
+
+            if c == Ordering::Equal {
+                self.pos.cmp(&other.pos)
+            } else {
+                c
+            }
         }
     }
-}
 
-impl<T: Copy+Clone+Eq+PartialEq+Ord> PartialOrd for State<T> {
-    fn partial_cmp(&self, other: &State<T>) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
+    impl<T: Copy+Clone+Eq+PartialEq+Ord> PartialOrd for State<T> {
+        fn partial_cmp(&self, other: &State<T>) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    pub trait Context<T: Copy+Clone+Eq+PartialEq+Ord> {
+        fn dist(&self, pos: T) -> usize;
+        fn nexts(&self, s: &State<T>) -> Vec<State<T>>;
+        fn update_dist(&mut self, s: &State<T>);
+    }
+
+    #[allow(dead_code)]
+    pub fn run<T: Copy+Clone+Eq+PartialEq+Ord>(context: &mut Context<T>, start: State<T>, end: T) -> Option<usize> {
+        let mut heap = BinaryHeap::new();
+        heap.push(start);
+
+        while let Some(State {cost, pos}) = heap.pop() {
+            if pos == end {
+                return Some(cost);
+            }
+
+            if cost > context.dist(pos) { continue; }
+
+            for next in context.nexts(&State {cost: cost, pos: pos}) {
+                if next.cost < context.dist(next.pos) {
+                    context.update_dist(&next);
+                    heap.push(next);
+                }
+            }
+        }
+
+        None
     }
 }
+
+struct Context<'a> {
+    ss: &'a Vec<Vec<char>>,
+    dist: Vec<Vec<usize>>,
+}
+
+use dijkstra::State;
+
+impl<'a> dijkstra::Context<(usize, usize)> for Context<'a> {
+    fn dist(&self, pos: (usize, usize)) -> usize {
+        self.dist[pos.0][pos.1]
+    }
+
+    fn nexts(&self, s: &State<(usize, usize)>) -> Vec<State<(usize, usize)>> {
+        let mut res = Vec::new();
+
+        for offset in vec![(-1,0), (1,0), (0,1), (0,-1)] {
+            if is_reachable(s.pos, offset, self.ss) {
+                let next_r = (s.pos.0 as i32 +offset.0) as usize;
+                let next_c = (s.pos.1 as i32 +offset.1) as usize;
+
+                let next = State{ cost: s.cost + 1, pos: (next_r, next_c)};
+                res.push(next);
+            }
+        }
+
+        res
+    }
+
+    fn update_dist(&mut self, s: &State<(usize, usize)>) {
+        self.dist[s.pos.0][s.pos.1] = s.cost;
+    }
+}
+
 
 fn is_reachable(pos: (usize, usize), offset: (i32, i32), ss: &Vec<Vec<char>>) -> bool {
     let h = ss.len();
@@ -90,6 +157,7 @@ fn is_reachable(pos: (usize, usize), offset: (i32, i32), ss: &Vec<Vec<char>>) ->
 }
 
 fn _solve(ss: &Vec<Vec<char>>) -> Option<usize> {
+    use dijkstra::State;
     let h = ss.len();
     let w = ss[0].len();
     let goal = (h-1, w-1);
