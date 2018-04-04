@@ -111,6 +111,15 @@ struct Context<'a> {
     dist: Vec<Vec<usize>>,
 }
 
+impl<'a> Context<'a> {
+    fn new(ss: &'a Vec<Vec<char>>) -> Self {
+        let h = ss.len();
+        let w = ss[0].len();
+
+        Context{ss: ss, dist: vec![vec![std::usize::MAX; w]; h]}
+    }
+}
+
 use dijkstra::State;
 
 impl<'a> dijkstra::Context<(usize, usize)> for Context<'a> {
@@ -157,38 +166,9 @@ fn is_reachable(pos: (usize, usize), offset: (i32, i32), ss: &Vec<Vec<char>>) ->
 }
 
 fn _solve(ss: &Vec<Vec<char>>) -> Option<usize> {
-    use dijkstra::State;
-    let h = ss.len();
-    let w = ss[0].len();
-    let goal = (h-1, w-1);
+    let mut context = Context::new(ss);
 
-    let mut dist = vec![vec![std::usize::MAX; w]; h];
-    let mut heap = std::collections::BinaryHeap::new();
-    heap.push(State{cost: 1, pos: (0,0)});
-
-    while let Some(State {cost, pos}) = heap.pop() {
-        if pos == goal {
-            return Some(cost);
-        }
-
-        if cost > dist[pos.0][pos.1] { continue; }
-
-        for offset in vec![(-1,0), (1,0), (0,1), (0,-1)] {
-            if is_reachable(pos, offset, &ss) {
-                let next_r = (pos.0 as i32 +offset.0) as usize;
-                let next_c = (pos.1 as i32 +offset.1) as usize;
-
-                let next = State{ cost: cost + 1, pos: (next_r, next_c)};
-
-                if next.cost < dist[next_r][next_c] {
-                    heap.push(next);
-                    dist[next_r][next_c] = next.cost;
-                }
-            }
-        }
-    }
-
-    None
+    dijkstra::run(&mut context, State{cost:1, pos:(0,0)}, (ss.len()-1, ss[0].len()-1))
 }
 
 fn solve(ss: Vec<Vec<char>>) -> Option<usize> {
