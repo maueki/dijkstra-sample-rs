@@ -49,14 +49,14 @@ fn parse_table(rows: usize) -> Vec<Vec<char>> {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
-struct State {
+struct State<T: Copy+Clone+Eq+PartialEq+Ord> {
     cost: usize,
-    pos: (usize, usize)
+    pos: T
 }
 
 use std::cmp::Ordering;
-impl Ord for State {
-    fn cmp(&self, other: &State) -> std::cmp::Ordering {
+impl<T: Copy+Clone+Eq+PartialEq+Ord> Ord for State<T> {
+    fn cmp(&self, other: &State<T>) -> std::cmp::Ordering {
         let c = other.cost.cmp(&self.cost);
 
         if c == Ordering::Equal {
@@ -67,8 +67,8 @@ impl Ord for State {
     }
 }
 
-impl PartialOrd for State {
-    fn partial_cmp(&self, other: &State) -> Option<std::cmp::Ordering> {
+impl<T: Copy+Clone+Eq+PartialEq+Ord> PartialOrd for State<T> {
+    fn partial_cmp(&self, other: &State<T>) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
