@@ -51,14 +51,30 @@ fn parse_table(rows: usize) -> Vec<Vec<char>> {
 mod dijkstra {
     use std::cmp::Ordering;
     use std::collections::BinaryHeap;
+    use std::collections::HashMap;
+    use std::hash::Hash;
 
     #[derive(Copy, Clone, Eq, PartialEq)]
-    pub struct State<T: Copy+Clone+Eq+PartialEq+Ord> {
+    pub struct State<T>
+    {
         pub cost: usize,
         pub pos: T
     }
 
-    impl<T: Copy+Clone+Eq+PartialEq+Ord> Ord for State<T> {
+    pub trait Context<T>
+    {
+        fn cost(&self, pos: T) -> usize;
+        fn update_cost(&mut self, s: &State<T>);
+        fn nexts(&self, s: &State<T>) -> Vec<State<T>>;
+    }
+
+    pub trait NextState<T>
+    {
+        fn nexts(&self, s: &State<T>) -> Vec<State<T>>;
+    }
+
+    impl<T> Ord for State<T>
+    where T: Copy+Ord {
         fn cmp(&self, other: &State<T>) -> Ordering {
             let c = other.cost.cmp(&self.cost);
 
@@ -70,20 +86,15 @@ mod dijkstra {
         }
     }
 
-    impl<T: Copy+Clone+Eq+PartialEq+Ord> PartialOrd for State<T> {
+    impl<T: Copy+Ord> PartialOrd for State<T> {
         fn partial_cmp(&self, other: &State<T>) -> Option<Ordering> {
             Some(self.cmp(other))
         }
     }
 
-    pub trait Context<T: Copy+Clone+Eq+PartialEq+Ord> {
-        fn dist(&self, pos: T) -> usize;
-        fn nexts(&self, s: &State<T>) -> Vec<State<T>>;
-        fn update_dist(&mut self, s: &State<T>);
-    }
-
     #[allow(dead_code)]
-    pub fn run<T: Copy+Clone+Eq+PartialEq+Ord>(context: &mut Context<T>, start: State<T>, end: T) -> Option<usize> {
+    pub fn run<T>(context: &mut Context<T>, start: State<T>, end: T) -> Option<usize>
+    where T: Copy+Ord {
         let mut heap = BinaryHeap::new();
         heap.push(start);
 
@@ -92,11 +103,11 @@ mod dijkstra {
                 return Some(cost);
             }
 
-            if cost > context.dist(pos) { continue; }
+            if cost > context.cost(pos) { continue; }
 
             for next in context.nexts(&State {cost: cost, pos: pos}) {
-                if next.cost < context.dist(next.pos) {
-                    context.update_dist(&next);
+                if next.cost < context.cost(next.pos) {
+                    context.update_cost(&next);
                     heap.push(next);
                 }
             }
@@ -104,34 +115,47 @@ mod dijkstra {
 
         None
     }
-}
 
-struct Context<'a> {
-    ss: &'a Vec<Vec<char>>,
-    dist: Vec<Vec<usize>>,
-}
+    pub struct DefaultContext<'a, T, U>
+    where U: 'a
+    {
+        pub table: HashMap<T, usize>,
+        pub data: &'a U
+    }
 
-impl<'a> Context<'a> {
-    fn new(ss: &'a Vec<Vec<char>>) -> Self {
-        let h = ss.len();
-        let w = ss[0].len();
+    impl<'a, T, U> DefaultContext<'a, T, U>
+    where T: Eq+Hash, U: NextState<T>
+    {
+        pub fn new(data: &'a U) -> Self {
+            DefaultContext{ table: HashMap::new(), data: data }
+        }
+    }
 
-        Context{ss: ss, dist: vec![vec![std::usize::MAX; w]; h]}
+    impl<'a, T, U> Context<T> for DefaultContext<'a, T, U>
+    where T: Copy+Clone+Eq+Hash, U: NextState<T>
+    {
+        fn cost(&self, pos: T) -> usize {
+            self.table.get(&pos).map_or(::std::usize::MAX, |c| *c)
+        }
+
+        fn update_cost(&mut self, s: &State<T>) {
+            self.table.insert(s.pos, s.cost);
+        }
+
+        fn nexts(&self, s: &State<T>) -> Vec<State<T>> {
+            self.data.nexts(s)
+        }
     }
 }
 
-use dijkstra::State;
+use dijkstra::*;
 
-impl<'a> dijkstra::Context<(usize, usize)> for Context<'a> {
-    fn dist(&self, pos: (usize, usize)) -> usize {
-        self.dist[pos.0][pos.1]
-    }
-
+impl dijkstra::NextState<(usize, usize)> for Vec<Vec<char>> {
     fn nexts(&self, s: &State<(usize, usize)>) -> Vec<State<(usize, usize)>> {
         let mut res = Vec::new();
 
         for offset in vec![(-1,0), (1,0), (0,1), (0,-1)] {
-            if is_reachable(s.pos, offset, self.ss) {
+            if is_reachable(s.pos, offset, &self) {
                 let next_r = (s.pos.0 as i32 +offset.0) as usize;
                 let next_c = (s.pos.1 as i32 +offset.1) as usize;
 
@@ -141,10 +165,6 @@ impl<'a> dijkstra::Context<(usize, usize)> for Context<'a> {
         }
 
         res
-    }
-
-    fn update_dist(&mut self, s: &State<(usize, usize)>) {
-        self.dist[s.pos.0][s.pos.1] = s.cost;
     }
 }
 
@@ -166,7 +186,7 @@ fn is_reachable(pos: (usize, usize), offset: (i32, i32), ss: &Vec<Vec<char>>) ->
 }
 
 fn _solve(ss: &Vec<Vec<char>>) -> Option<usize> {
-    let mut context = Context::new(ss);
+    let mut context = DefaultContext::new(ss);
 
     dijkstra::run(&mut context, State{cost:1, pos:(0,0)}, (ss.len()-1, ss[0].len()-1))
 }
