@@ -68,11 +68,6 @@ mod dijkstra {
         fn nexts(&self, s: &State<T>) -> Vec<State<T>>;
     }
 
-    pub trait NextState<T>
-    {
-        fn nexts(&self, s: &State<T>) -> Vec<State<T>>;
-    }
-
     impl<T> Ord for State<T>
     where T: Copy+Ord {
         fn cmp(&self, other: &State<T>) -> Ordering {
@@ -116,23 +111,15 @@ mod dijkstra {
         None
     }
 
-    pub struct DefaultContext<'a, T, U>
-    where U: 'a
+    pub struct DefaultContext<'a, T: 'a>
     {
         pub table: HashMap<T, usize>,
-        pub data: &'a U
+        pub f: &'a Fn(&State<T>) -> Vec<State<T>>
     }
 
-    impl<'a, T, U> DefaultContext<'a, T, U>
-    where T: Eq+Hash, U: NextState<T>
-    {
-        pub fn new(data: &'a U) -> Self {
-            DefaultContext{ table: HashMap::new(), data: data }
-        }
-    }
 
-    impl<'a, T, U> Context<T> for DefaultContext<'a, T, U>
-    where T: Copy+Clone+Eq+Hash, U: NextState<T>
+    impl<'a, T> Context<T> for DefaultContext<'a, T>
+    where T: Copy+Clone+Eq+Hash
     {
         fn cost(&self, pos: T) -> usize {
             self.table.get(&pos).map_or(::std::usize::MAX, |c| *c)
@@ -143,31 +130,19 @@ mod dijkstra {
         }
 
         fn nexts(&self, s: &State<T>) -> Vec<State<T>> {
-            self.data.nexts(s)
+            (self.f)(s)
         }
     }
+
+    #[allow(dead_code)]
+    pub fn create_default_context<'a, T, F>(f: &'a F) -> DefaultContext<'a, T>
+    where T: Eq + Hash, F: Fn(&State<T>) -> Vec<State<T>> {
+        DefaultContext{ table: HashMap::new(), f: f}
+    }
+
 }
 
 use dijkstra::*;
-
-impl dijkstra::NextState<(usize, usize)> for Vec<Vec<char>> {
-    fn nexts(&self, s: &State<(usize, usize)>) -> Vec<State<(usize, usize)>> {
-        let mut res = Vec::new();
-
-        for offset in vec![(-1,0), (1,0), (0,1), (0,-1)] {
-            if is_reachable(s.pos, offset, &self) {
-                let next_r = (s.pos.0 as i32 +offset.0) as usize;
-                let next_c = (s.pos.1 as i32 +offset.1) as usize;
-
-                let next = State{ cost: s.cost + 1, pos: (next_r, next_c)};
-                res.push(next);
-            }
-        }
-
-        res
-    }
-}
-
 
 fn is_reachable(pos: (usize, usize), offset: (i32, i32), ss: &Vec<Vec<char>>) -> bool {
     let h = ss.len();
@@ -186,7 +161,23 @@ fn is_reachable(pos: (usize, usize), offset: (i32, i32), ss: &Vec<Vec<char>>) ->
 }
 
 fn _solve(ss: &Vec<Vec<char>>) -> Option<usize> {
-    let mut context = DefaultContext::new(ss);
+    let next_state = |s: &State<(usize, usize)>| {
+        let mut res = Vec::new();
+
+        for offset in vec![(-1,0), (1,0), (0,1), (0,-1)] {
+            if is_reachable(s.pos, offset, &ss) {
+                let next_r = (s.pos.0 as i32 +offset.0) as usize;
+                let next_c = (s.pos.1 as i32 +offset.1) as usize;
+
+                let next = State{ cost: s.cost + 1, pos: (next_r, next_c)};
+                res.push(next);
+            }
+        }
+
+        res
+    };
+
+    let mut context = create_default_context(&next_state);
 
     dijkstra::run(&mut context, State{cost:1, pos:(0,0)}, (ss.len()-1, ss[0].len()-1))
 }
