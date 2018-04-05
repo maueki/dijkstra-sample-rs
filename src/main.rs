@@ -66,6 +66,28 @@ mod dijkstra {
         fn cost(&self, pos: T) -> usize;
         fn update_cost(&mut self, s: &State<T>);
         fn nexts(&self, s: &State<T>) -> Vec<State<T>>;
+
+        fn run(&mut self, start: State<T>, end: T) -> Option<usize>
+        where T: Copy+Ord {
+            let mut heap = BinaryHeap::new();
+            heap.push(start);
+
+            while let Some(State {cost, pos}) = heap.pop() {
+                if pos == end {
+                    return Some(cost);
+                }
+
+                if cost > self.cost(pos) { continue; }
+
+                for next in self.nexts(&State {cost: cost, pos: pos}) {
+                    if next.cost < self.cost(next.pos) {
+                        self.update_cost(&next);
+                        heap.push(next);
+                    }
+                }
+            }
+            None
+        }
     }
 
     impl<T> Ord for State<T>
@@ -85,30 +107,6 @@ mod dijkstra {
         fn partial_cmp(&self, other: &State<T>) -> Option<Ordering> {
             Some(self.cmp(other))
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn run<T>(context: &mut Context<T>, start: State<T>, end: T) -> Option<usize>
-    where T: Copy+Ord {
-        let mut heap = BinaryHeap::new();
-        heap.push(start);
-
-        while let Some(State {cost, pos}) = heap.pop() {
-            if pos == end {
-                return Some(cost);
-            }
-
-            if cost > context.cost(pos) { continue; }
-
-            for next in context.nexts(&State {cost: cost, pos: pos}) {
-                if next.cost < context.cost(next.pos) {
-                    context.update_cost(&next);
-                    heap.push(next);
-                }
-            }
-        }
-
-        None
     }
 
     pub struct DefaultContext<'a, T: 'a>
@@ -179,7 +177,7 @@ fn _solve(ss: &Vec<Vec<char>>) -> Option<usize> {
 
     let mut context = create_default_context(&next_state);
 
-    dijkstra::run(&mut context, State{cost:1, pos:(0,0)}, (ss.len()-1, ss[0].len()-1))
+    context.run(State{cost:1, pos:(0,0)}, (ss.len()-1, ss[0].len()-1))
 }
 
 fn solve(ss: Vec<Vec<char>>) -> Option<usize> {
