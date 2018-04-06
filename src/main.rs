@@ -65,7 +65,7 @@ mod dijkstra {
     {
         fn cost(&self, pos: T) -> usize;
         fn update_cost(&mut self, s: &State<T>);
-        fn nexts(&self, s: &State<T>) -> Vec<State<T>>;
+        fn neighbours(&self, s: &State<T>) -> Vec<State<T>>;
 
         fn run(&mut self, start: State<T>, end: T) -> Option<usize>
         where T: Copy+Ord {
@@ -79,7 +79,7 @@ mod dijkstra {
 
                 if cost > self.cost(pos) { continue; }
 
-                for next in self.nexts(&State {cost: cost, pos: pos}) {
+                for next in self.neighbours(&State {cost: cost, pos: pos}) {
                     if next.cost < self.cost(next.pos) {
                         self.update_cost(&next);
                         heap.push(next);
@@ -127,7 +127,7 @@ mod dijkstra {
             self.table.insert(s.pos, s.cost);
         }
 
-        fn nexts(&self, s: &State<T>) -> Vec<State<T>> {
+        fn neighbours(&self, s: &State<T>) -> Vec<State<T>> {
             (self.f)(s)
         }
     }
